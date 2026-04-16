@@ -1,44 +1,14 @@
-name: Build iOS IPA
-on: [push, workflow_dispatch]
-
-jobs:
-  build:
-    runs-on: macos-latest
-    steps:
-      - uses: actions/checkout@v4 # Обновили до v4
-
-      - name: Install Certs
-        env:
-          P12_BASE64: ${{ secrets.P12_BASE64 }}
-          P12_PASSWORD: ${{ secrets.P12_PASSWORD }}
-          PROVISION_BASE64: ${{ secrets.MOBILEPROVISION_BASE64 }}
+- name: Build
         run: |
-          CERT_PATH=$RUNNER_TEMP/build_certificate.p12
-          PP_PATH=$RUNNER_TEMP/build_pp.mobileprovision
-          echo -n "$P12_BASE64" | base64 --decode --output $CERT_PATH
-          echo -n "$PROVISION_BASE64" | base64 --decode --output $PP_PATH
-          
-          KEYCHAIN_PATH=$RUNNER_TEMP/app-signing.keychain-db
-          security create-keychain -p "" $KEYCHAIN_PATH
-          security set-keychain-settings -lut 21600 $KEYCHAIN_PATH
-          security unlock-keychain -p "" $KEYCHAIN_PATH
-          security import $CERT_PATH -P "$P12_PASSWORD" -A -t cert -f pkcs12 -k $KEYCHAIN_PATH
-          security list-keychain -d user -s $KEYCHAIN_PATH
-          
-          mkdir -p ~/Library/MobileDevice/Provisioning\ Profiles
-          cp $PP_PATH ~/Library/MobileDevice/Provisioning\ Profiles/
+          # Собираем через xcodebuild, указывая просто текущую папку
+          xcodebuild archive \
+            -target Gothbreach \
+            -archivePath $RUNNER_TEMP/Gothbreach.xcarchive \
+            -sdk iphoneos \
+            -configuration Release \
+            -allowProvisioningUpdates
 
-      - name: Build
-        run: |
-          # Пытаемся собрать проект. 
-          # Если у тебя папка с кодом называется не Gothbreach, 
-          # xcodebuild сам попробует найти первую попавшуюся схему.
-          xcodebuild archive -archivePath $RUNNER_TEMP/Gothbreach.xcarchive -sdk iphoneos -configuration Release -allowProvisioningUpdates
-          
-          xcodebuild -exportArchive -archivePath $RUNNER_TEMP/Gothbreach.xcarchive -exportOptionsPlist exportOptions.plist -exportPath $RUNNER_TEMP/build
-
-      - name: Upload
-        uses: actions/upload-artifact@v4 # ИСПРАВЛЕНО: v4 теперь работает
-        with:
-          name: Gothbreach-Installer
-          path: ${{ runner.temp }}/build/*.ipa
+          xcodebuild -exportArchive \
+            -archivePath $RUNNER_TEMP/Gothbreach.xcarchive \
+            -exportOptionsPlist exportOptions.plist \
+            -exportPath $RUNNER_TEMP/build
